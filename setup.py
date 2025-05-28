@@ -14,7 +14,8 @@ setuptools.setup(
     scripts=[],
     install_requires=[
         "gradio",
-        "chatterbox-tts"
+        # "chatterbox-tts"
+        "chatterbox-tts @ git+https://github.com/rsxdalv/chatterbox.git"
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
