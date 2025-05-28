@@ -5,7 +5,7 @@ def extension__tts_generation_webui():
     ui_wrapper()
     return {
         "package_name": "extension_chatterbox",
-        "name": "Chatterbox (Not available yet)",
+        "name": "Chatterbox",
         "requirements": "git+https://github.com/rsxdalv/extension_chatterbox@main",
         "description": "Chatterbox, Resemble AI's first production-grade open source TTS model",
         "extension_type": "interface",

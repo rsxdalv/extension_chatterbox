@@ -90,17 +90,17 @@ def tts_ui():
             text = gr.Textbox(label="Text")
             btn = gr.Button("Generate")
             exaggeration = gr.Slider(
-                label="Exaggeration", minimum=0, maximum=1, value=0.5
+                label="Exaggeration (Neutral = 0.5, extreme values can be unstable)", minimum=0, maximum=2, value=0.5
             )
-            cfg_weight = gr.Slider(label="CFG Weight", minimum=0, maximum=1, value=0.5)
+            cfg_weight = gr.Slider(label="CFG Weight/Pace", minimum=0.2, maximum=1, value=0.5)
             temperature = gr.Slider(
-                label="Temperature", minimum=0, maximum=1, value=0.8
+                label="Temperature", minimum=0.05, maximum=5, value=0.8
             )
-            audio_prompt_path = gr.Audio(label="Audio Prompt", type="filepath")
+            audio_prompt_path = gr.Audio(label="Reference Audio", type="filepath")
             seed, randomize_seed_callback = randomize_seed_ui()
 
         with gr.Column():
-            audio_out = gr.Audio(label="Audio")
+            audio_out = gr.Audio(label="Audio Output")
             unload_model_button("chatterbox")
 
     btn.click(
