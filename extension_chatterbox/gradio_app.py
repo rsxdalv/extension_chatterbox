@@ -56,7 +56,7 @@ def tts_decorated(*args, _type=None, **kwargs):
     return tts(*args, **kwargs)
 
 
-def tts_ui():
+def ui():
     gr.HTML(
         """
   <h2 style="text-align: center;">Chatterbox TTS</h2>
