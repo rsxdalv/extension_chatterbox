@@ -46,7 +46,7 @@ def tts(
 @decorator_apply_torch_seed
 @decorator_save_metadata
 @decorator_save_wav
-@decorator_add_model_type("kokoro")
+@decorator_add_model_type("chatterbox")
 @decorator_add_base_filename
 @decorator_add_date
 @decorator_log_generation
