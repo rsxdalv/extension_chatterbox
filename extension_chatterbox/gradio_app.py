@@ -1,8 +1,8 @@
 import functools
 import gradio as gr
-
+from contextlib import contextmanager
+import torch
 from chatterbox.tts import ChatterboxTTS
-import numpy as np
 
 from tts_webui.utils.manage_model_state import manage_model_state
 from tts_webui.decorators import *
@@ -15,10 +15,53 @@ from tts_webui.utils.manage_model_state import manage_model_state
 from tts_webui.utils.randomize_seed import randomize_seed_ui
 
 
-@manage_model_state("chatterbox")
-def get_model(model_name="just_a_placeholder", device="cuda"):
-    return ChatterboxTTS.from_pretrained(device=device)
+def chatterbox_to(model: ChatterboxTTS, device, dtype):
+    # model.ve.to(device=device, dtype=dtype)
+    model.ve.to(device=device)
+    model.t3.to(device=device, dtype=dtype)
+    model.s3gen.to(device=device, dtype=dtype)
+    model.conds.to(device=device)
+    model.device = device
+    torch.cuda.empty_cache()
 
+    return model
+
+
+@manage_model_state("chatterbox")
+def get_model(
+    model_name="just_a_placeholder", device=torch.device("cuda"), dtype=torch.float32
+):
+    model = ChatterboxTTS.from_pretrained(device=device)
+    chatterbox_to(model, device, dtype)
+    return model
+
+
+@contextmanager
+def chatterbox_model(model_name, device="cuda", dtype=torch.float32):
+    model = get_model(
+        # model_name="just_a_placeholder" + str(device) + str(dtype),
+        # pretty name
+        model_name=f"Chatterbox on {device} with {dtype}",
+        device=torch.device(device),
+    )
+    # chatterbox_to(model, torch.device(device), dtype)
+
+    use_autocast = dtype in [torch.float16, torch.bfloat16]
+
+    with (
+        torch.autocast(device_type=device, dtype=dtype)
+        if use_autocast
+        else torch.no_grad()
+    ):
+        yield model
+
+def get_best_device():
+    if torch.cuda.is_available():
+        return "cuda"
+    elif torch.backends.mps.is_available():
+        return "mps"
+    else:
+        return "cpu"
 
 def tts(
     text,
@@ -26,19 +69,41 @@ def tts(
     cfg_weight=0.5,
     temperature=0.8,
     audio_prompt_path=None,
+    # model
+    model_name="just_a_placeholder",
+    device="cuda",
+    dtype=torch.float32,
     **kwargs
 ):
-    model = get_model(model_name="just_a_placeholder")
-    wav = model.generate(
-        text,
-        audio_prompt_path=audio_prompt_path,
-        exaggeration=exaggeration,
-        cfg_weight=cfg_weight,
-        temperature=temperature,
-    )
-    return {
-        "audio_out": (model.sr, wav.cpu().numpy().squeeze()),
-    }
+    device = get_best_device() if device == "auto" else device
+    print(f"Using device: {device}")
+
+    try:
+        with chatterbox_model(
+            model_name=model_name,
+            device=device,
+            dtype={
+                "float32": torch.float32,
+                "float16": torch.float16,
+                "bfloat16": torch.bfloat16,
+            }[dtype],
+        ) as model:
+            wav = model.generate(
+                text,
+                audio_prompt_path=audio_prompt_path,
+                exaggeration=exaggeration,
+                cfg_weight=cfg_weight,
+                temperature=temperature,
+            )
+
+        return {
+            "audio_out": (model.sr, wav.cpu().numpy().squeeze()),
+        }
+    except Exception as e:
+        import traceback
+
+        print(traceback.format_exc())
+        raise gr.Error(f"Error: {e}")
 
 
 @functools.wraps(tts)
@@ -88,20 +153,45 @@ def ui():
     with gr.Row():
         with gr.Column():
             text = gr.Textbox(label="Text")
-            btn = gr.Button("Generate")
+            btn = gr.Button("Generate", variant="primary")
             exaggeration = gr.Slider(
-                label="Exaggeration (Neutral = 0.5, extreme values can be unstable)", minimum=0, maximum=2, value=0.5
+                label="Exaggeration (Neutral = 0.5, extreme values can be unstable)",
+                minimum=0,
+                maximum=2,
+                value=0.5,
             )
-            cfg_weight = gr.Slider(label="CFG Weight/Pace", minimum=0.2, maximum=1, value=0.5)
+            cfg_weight = gr.Slider(
+                label="CFG Weight/Pace", minimum=0.2, maximum=1, value=0.5
+            )
             temperature = gr.Slider(
                 label="Temperature", minimum=0.05, maximum=5, value=0.8
             )
             audio_prompt_path = gr.Audio(label="Reference Audio", type="filepath")
             seed, randomize_seed_callback = randomize_seed_ui()
 
+            # model
+            with gr.Accordion("Advanced", open=False):
+                device = gr.Radio(
+                    label="Device",
+                    choices=["auto", "cuda", "mps", "cpu"],
+                    value="auto",
+                )
+                dtype = gr.Radio(
+                    label="Dtype",
+                    # choices=["float32", "float16", "bfloat16"],
+                    choices=["float32"],
+                    value="float32",
+                )
+                model_name = gr.Dropdown(
+                    label="Model",
+                    choices=["just_a_placeholder"],
+                    value="just_a_placeholder",
+                    visible=False,
+                )
+                unload_model_button("chatterbox")
+
         with gr.Column():
             audio_out = gr.Audio(label="Audio Output")
-            unload_model_button("chatterbox")
 
     btn.click(
         **randomize_seed_callback,
@@ -114,6 +204,11 @@ def ui():
                 cfg_weight: "cfg_weight",
                 temperature: "temperature",
                 audio_prompt_path: "audio_prompt_path",
+                seed: "seed",
+                # model
+                device: "device",
+                dtype: "dtype",
+                model_name: "model_name",
             },
             outputs={
                 "audio_out": audio_out,
@@ -128,6 +223,6 @@ if __name__ == "__main__":
     if "demo" in locals():
         demo.close()
     with gr.Blocks() as demo:
-        tts_ui()
+        ui()
 
     demo.launch()
