@@ -55,6 +55,7 @@ def chatterbox_model(model_name, device="cuda", dtype=torch.float32):
     ):
         yield model
 
+
 def get_best_device():
     if torch.cuda.is_available():
         return "cuda"
@@ -62,6 +63,7 @@ def get_best_device():
         return "mps"
     else:
         return "cpu"
+
 
 def tts(
     text,
@@ -73,7 +75,8 @@ def tts(
     model_name="just_a_placeholder",
     device="cuda",
     dtype="float32",
-    **kwargs
+    seed=-1, # for fn signature
+    **kwargs,
 ):
     device = get_best_device() if device == "auto" else device
     print(f"Using device: {device}")
@@ -166,7 +169,9 @@ def ui():
             temperature = gr.Slider(
                 label="Temperature", minimum=0.05, maximum=5, value=0.8
             )
-            audio_prompt_path = gr.Audio(label="Reference Audio", type="filepath")
+            audio_prompt_path = gr.Audio(
+                label="Reference Audio", type="filepath", value=None
+            )
             seed, randomize_seed_callback = randomize_seed_ui()
 
             # model
@@ -196,7 +201,7 @@ def ui():
     btn.click(
         **randomize_seed_callback,
     ).then(
-        **dictionarize(
+        **dictionarize_wraps(
             tts_decorated,
             inputs={
                 text: "text",
@@ -215,6 +220,7 @@ def ui():
                 "metadata": gr.JSON(visible=False),
                 "folder_root": gr.Textbox(visible=False),
             },
+            api_name="chatterbox_tts",
         )
     )
 
@@ -225,4 +231,7 @@ if __name__ == "__main__":
     with gr.Blocks() as demo:
         ui()
 
-    demo.launch()
+    demo.launch(
+        server_port=7770,
+    )
+    # python -m workspace.extension_chatterbox.extension_chatterbox.gradio_app
