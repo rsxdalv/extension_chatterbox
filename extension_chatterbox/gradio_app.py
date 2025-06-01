@@ -164,7 +164,7 @@ def ui():
                 value=0.5,
             )
             cfg_weight = gr.Slider(
-                label="CFG Weight/Pace", minimum=0.2, maximum=1, value=0.5
+                label="CFG Weight/Pace", minimum=0.0, maximum=1, value=0.5
             )
             temperature = gr.Slider(
                 label="Temperature", minimum=0.05, maximum=5, value=0.8

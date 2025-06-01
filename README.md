@@ -1,2 +1,2 @@
-# Chatterbox extension for TTS generation WebUI
-[TTS generation WebUI](https://github.com/rsxdalv/tts-generation-webui) extension for [Chatterbox](https://github.com/resemble-ai/chatterbox)
+# Chatterbox extension for TTS WebUI
+[TTS WebUI](https://github.com/rsxdalv/tts-webui) extension for [Chatterbox](https://github.com/resemble-ai/chatterbox)
