@@ -72,7 +72,7 @@ def tts(
     # model
     model_name="just_a_placeholder",
     device="cuda",
-    dtype=torch.float32,
+    dtype="float32",
     **kwargs
 ):
     device = get_best_device() if device == "auto" else device
