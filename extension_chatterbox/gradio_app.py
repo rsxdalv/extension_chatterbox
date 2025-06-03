@@ -399,7 +399,7 @@ def ui():
 
     with gr.Row():
         with gr.Column():
-            text = gr.Textbox(label="Text")
+            text = gr.Textbox(label="Text", lines=3)
             with gr.Row():
                 btn_interrupt = gr.Button("Interrupt next chunk", interactive=False)
                 btn_stream = gr.Button("Streaming generation", variant="secondary")
