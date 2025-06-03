@@ -351,8 +351,9 @@ async def interrupt():
 
 
 def get_voices():
-    voices_dir = get_path_from_root("voices")
-    results = ["select a voice to load it"] + [
+    voices_dir = get_path_from_root("voices", "chatterbox")
+    os.makedirs(voices_dir, exist_ok=True)
+    results = [
         (x, os.path.join(voices_dir, x))
         for x in os.listdir(voices_dir)
         if x.endswith(".wav")
@@ -400,8 +401,8 @@ def ui():
             with gr.Row():
                 voice_dropdown = gr.Dropdown(
                     label="Saved voices",
+                    choices=["refresh to load the voices"]
                 )
-                # with gr.Column(scale=0):
                 IconButton("refresh").click(
                     fn=lambda: gr.Dropdown(choices=get_voices()),
                     outputs=[voice_dropdown],
@@ -442,9 +443,9 @@ def ui():
 
             gr.Markdown("## Settings")
 
-            with gr.Accordion("Chunking", open=True):
+            with gr.Accordion("Chunking", open=True), gr.Group():
+                chunked = gr.Checkbox(label="Split prompt into chunks", value=False)
                 with gr.Row():
-                    chunked = gr.Checkbox(label="Split prompt into chunks", value=False)
                     desired_length = gr.Slider(
                         label="Desired length (characters)",
                         minimum=10,
