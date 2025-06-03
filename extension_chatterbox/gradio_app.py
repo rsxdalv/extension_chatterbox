@@ -75,6 +75,7 @@ def get_model(
     model_name="just_a_placeholder", device=torch.device("cuda"), dtype=torch.float32
 ):
     model = ChatterboxTTS.from_pretrained(device=device)
+    # having everything on float32 increases performance
     return chatterbox_to(model, device, dtype)
 
 
@@ -187,6 +188,9 @@ def _tts_generator(
     desired_length=200,
     max_length=300,
     seed=-1,  # for signature compatibility
+    progress=gr.Progress(),
+    streaming=False,
+    # progress=gr.Progress(track_tqdm=True),
     **kwargs,
 ):
     device = resolve_device(device)
@@ -194,11 +198,13 @@ def _tts_generator(
 
     print(f"Using device: {device}")
 
+    progress(0.0, desc="Retrieving model...")
     with chatterbox_model(
         model_name=model_name,
         device=device,
         dtype=dtype,
     ) as model, cpu_offload_context(model, device, dtype, cpu_offload):
+        progress(0.1, desc="Generating audio...")
 
         def generate_chunk(text):
             print(f"Generating chunk: {text}")
@@ -222,7 +228,10 @@ def _tts_generator(
             if chunked
             else [text]
         )
-        for chunk in texts:
+        # for chunk in texts:
+        for i, chunk in enumerate(texts):
+            if not streaming:
+                progress(i / len(texts), desc=f"Generating chunk: {chunk}")
             for wav in generate_chunk(chunk):
                 yield {
                     "audio_out": (model.sr, wav.squeeze().cpu().numpy()),
@@ -235,7 +244,9 @@ global_interrupt_flag = InterruptionFlag()
 @functools.wraps(_tts_generator)
 def tts_stream(*args, **kwargs):
     try:
-        yield from _tts_generator(*args, interrupt_flag=global_interrupt_flag, **kwargs)
+        yield from _tts_generator(
+            *args, interrupt_flag=global_interrupt_flag, streaming=True, **kwargs
+        )
     except Exception as e:
         import traceback
 
@@ -400,8 +411,7 @@ def ui():
 
             with gr.Row():
                 voice_dropdown = gr.Dropdown(
-                    label="Saved voices",
-                    choices=["refresh to load the voices"]
+                    label="Saved voices", choices=["refresh to load the voices"]
                 )
                 IconButton("refresh").click(
                     fn=lambda: gr.Dropdown(choices=get_voices()),
@@ -500,7 +510,8 @@ def ui():
                     unload_model_button("chatterbox")
 
             with gr.Accordion("Streaming (Advanced Settings)", open=False):
-                gr.Markdown("""
+                gr.Markdown(
+                    """
 Streaming has issues due to Chatterbox producing artifacts.
 Tokens per slice: 
 * 1000 is recommended, it is the default maximum value, equivalent to disabling streaming.
@@ -517,7 +528,8 @@ Chunk overlap method:
 * full means that each chunk is appended and decoded as one long audio file.
                             
 Thus **the challenge is to fix the seams** - with no overlap, the artifacts are high. With a very long overlap, such as a 0.5s crossfade, the audio starts to produce echo.
-""")
+"""
+                )
                 with gr.Row():
                     tokens_per_slice = gr.Slider(
                         label="Tokens per slice",
