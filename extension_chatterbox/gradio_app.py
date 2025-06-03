@@ -28,7 +28,7 @@ from gradio_iconbutton import IconButton
 
 def chatterbox_to(model: ChatterboxTTS, device, dtype):
     print(f"Moving model to {str(device)}, {str(dtype)}")
-    
+
     model.ve.to(device=device)
     model.t3.to(device=device, dtype=dtype)
     model.s3gen.to(device=device, dtype=dtype)
@@ -177,6 +177,7 @@ def _tts_generator(
     cpu_offload=False,
     # hyperparameters
     chunked=False,
+    cache_voice=False,
     # streaming
     tokens_per_slice=1000,
     remove_milliseconds=100,
@@ -212,6 +213,8 @@ def _tts_generator(
                 remove_milliseconds=remove_milliseconds,
                 remove_milliseconds_start=remove_milliseconds_start,
                 chunk_overlap_method=chunk_overlap_method,
+                # Not implemented
+                # cache_voice=cache_voice,
             )
 
         texts = (
@@ -344,7 +347,8 @@ def tts_generator_decorated(*args, **kwargs):
 async def interrupt():
     global_interrupt_flag.interrupt()
     await global_interrupt_flag.join()
-    return "Interrupt after current"
+    return "Interrupt next chunk"
+
 
 def get_voices():
     voices_dir = get_path_from_root("voices")
@@ -384,14 +388,37 @@ def ui():
     with gr.Row():
         with gr.Column():
             text = gr.Textbox(label="Text")
-            btn = gr.Button("Generate", variant="primary")
-            btn_stream = gr.Button("Generate (streaming)")
-            btn_interrupt = gr.Button("Interrupt after current")
+            with gr.Row():
+                btn_interrupt = gr.Button("Interrupt next chunk", interactive=False)
+                btn_stream = gr.Button("Streaming generation", variant="secondary")
+                btn = gr.Button("Generate", variant="primary")
             btn_interrupt.click(
                 fn=lambda: gr.Button("Interrupting..."),
                 outputs=[btn_interrupt],
             ).then(fn=interrupt, outputs=[btn_interrupt])
-            chunked = gr.Checkbox(label="Split prompt into chunks", value=False)
+
+            with gr.Row():
+                voice_dropdown = gr.Dropdown(
+                    label="Saved voices",
+                )
+                # with gr.Column(scale=0):
+                IconButton("refresh").click(
+                    fn=lambda: gr.Dropdown(choices=get_voices()),
+                    outputs=[voice_dropdown],
+                )
+                voices_dir = get_path_from_root("voices")
+                OpenFolderButton(voices_dir, api_name="tortoise_open_voices")
+
+            audio_prompt_path = gr.Audio(
+                label="Reference Audio", type="filepath", value=None
+            )
+
+            voice_dropdown.change(
+                lambda x: gr.Audio(value=x),
+                inputs=[voice_dropdown],
+                outputs=[audio_prompt_path],
+            )
+
             exaggeration = gr.Slider(
                 label="Exaggeration (Neutral = 0.5, extreme values can be unstable)",
                 minimum=0,
@@ -405,31 +432,40 @@ def ui():
                 label="Temperature", minimum=0.05, maximum=5, value=0.8
             )
 
-            with gr.Row():
-                voice_dropdown = gr.Dropdown(
-                    label="Audio Prompt",
-                )
-                with gr.Column():
-                    IconButton("refresh").click(
-                        fn=lambda: gr.Dropdown(choices=get_voices()),
-                        outputs=[voice_dropdown],
-                    )
-                    voices_dir = get_path_from_root("voices")
-                    OpenFolderButton(voices_dir, api_name="tortoise_open_voices")
-
-            audio_prompt_path = gr.Audio(
-                label="Reference Audio", type="filepath", value=None
-            )
-
-            voice_dropdown.change(
-                lambda x: gr.Audio(value=x),
-                inputs=[voice_dropdown],
-                outputs=[audio_prompt_path],
-            )
             seed, randomize_seed_callback = randomize_seed_ui()
 
+        with gr.Column():
+            audio_out = gr.Audio(label="Audio Output")
+            streaming_audio_output = gr.Audio(
+                label="Audio Output (streaming)", streaming=True, autoplay=True
+            )
+
+            gr.Markdown("## Settings")
+
+            with gr.Accordion("Chunking", open=True):
+                with gr.Row():
+                    chunked = gr.Checkbox(label="Split prompt into chunks", value=False)
+                    desired_length = gr.Slider(
+                        label="Desired length (characters)",
+                        minimum=10,
+                        maximum=1000,
+                        value=200,
+                        step=1,
+                    )
+                    max_length = gr.Slider(
+                        label="Max length (characters)",
+                        minimum=10,
+                        maximum=1000,
+                        value=300,
+                        step=1,
+                    )
+                    cache_voice = gr.Checkbox(
+                        label="Cache voice (not implemented)",
+                        value=False,
+                        visible=False,
+                    )
             # model
-            with gr.Accordion("Advanced", open=False):
+            with gr.Accordion("Model", open=False):
                 with gr.Row():
                     device = gr.Radio(
                         label="Device",
@@ -448,6 +484,7 @@ def ui():
                         value="just_a_placeholder",
                         visible=False,
                     )
+                with gr.Row():
                     btn_move_model = gr.Button("Move to device and dtype")
                     btn_move_model.click(
                         fn=lambda: gr.Button("Moving..."),
@@ -459,8 +496,28 @@ def ui():
                         fn=lambda: gr.Button("Move to device and dtype"),
                         outputs=[btn_move_model],
                     )
+                    unload_model_button("chatterbox")
 
-                    # gr.Markdown("Streaming")
+            with gr.Accordion("Streaming (Advanced Settings)", open=False):
+                gr.Markdown("""
+Streaming has issues due to Chatterbox producing artifacts.
+Tokens per slice: 
+* 1000 is recommended, it is the default maximum value, equivalent to disabling streaming.
+* One second is around 23.5 tokens.
+                            
+Remove milliseconds:
+* 25 - 65 is recommended.
+    * This removes the last 45 milliseconds of each slice to avoid artifacts.
+* start: 15 - 35 is recommended.
+    * This removes the first 25 milliseconds of each slice to avoid artifacts.
+                            
+Chunk overlap method:
+* zero means that each chunk is seen sparately by the audio generator. 
+* full means that each chunk is appended and decoded as one long audio file.
+                            
+Thus **the challenge is to fix the seams** - with no overlap, the artifacts are high. With a very long overlap, such as a 0.5s crossfade, the audio starts to produce echo.
+""")
+                with gr.Row():
                     tokens_per_slice = gr.Slider(
                         label="Tokens per slice",
                         minimum=1,
@@ -487,28 +544,6 @@ def ui():
                         choices=["zero", "full"],
                         value="zero",
                     )
-                    # gr.Markdown("Chunks (when split prompt is enabled)")
-                    desired_length = gr.Slider(
-                        label="Desired length (seconds)",
-                        minimum=10,
-                        maximum=1000,
-                        value=200,
-                        step=1,
-                    )
-                    max_length = gr.Slider(
-                        label="Max length (seconds)",
-                        minimum=10,
-                        maximum=1000,
-                        value=300,
-                        step=1,
-                    )
-                unload_model_button("chatterbox")
-
-        with gr.Column():
-            audio_out = gr.Audio(label="Audio Output")
-            streaming_audio_output = gr.Audio(
-                label="Audio Output (streaming)", streaming=True, autoplay=True
-            )
 
     inputs = {
         text: "text",
@@ -524,6 +559,7 @@ def ui():
         # hyperparameters
         chunked: "chunked",
         cpu_offload: "cpu_offload",
+        cache_voice: "cache_voice",
         # streaming
         tokens_per_slice: "tokens_per_slice",
         remove_milliseconds: "remove_milliseconds",
@@ -534,9 +570,24 @@ def ui():
         max_length: "max_length",
     }
 
-    btn.click(
-        **randomize_seed_callback,
-    ).then(
+    generation_start = {
+        "fn": lambda: [
+            gr.Button("Generating...", interactive=False),
+            gr.Button("Generating...", interactive=False),
+            gr.Button("Interrupt next chunk", interactive=True, variant="stop"),
+        ],
+        "outputs": [btn, btn_stream, btn_interrupt],
+    }
+    generation_end = {
+        "fn": lambda: [
+            gr.Button("Generate", interactive=True, variant="primary"),
+            gr.Button("Streaming generation", interactive=True, variant="secondary"),
+            gr.Button("Interrupt next chunk", interactive=False, variant="stop"),
+        ],
+        "outputs": [btn, btn_stream, btn_interrupt],
+    }
+
+    btn.click(**randomize_seed_callback).then(**generation_start).then(
         **dictionarize_wraps(
             tts_decorated,
             inputs=inputs,
@@ -547,11 +598,9 @@ def ui():
             },
             api_name="chatterbox_tts",
         )
-    )
+    ).then(**generation_end)
 
-    btn_stream.click(
-        **randomize_seed_callback,
-    ).then(
+    btn_stream.click(**randomize_seed_callback).then(**generation_start).then(
         **dictionarize_wraps(
             tts_generator_decorated,
             inputs=inputs,
@@ -562,7 +611,7 @@ def ui():
             },
             api_name="chatterbox_tts_streaming",
         )
-    )
+    ).then(**generation_end)
 
 
 if __name__ == "__main__":
