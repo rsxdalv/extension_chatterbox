@@ -343,10 +343,10 @@ def numpy_to_wav_bytes(audio_data, sample_rate):
 # @decorator_convert_audio_output_generator  # <-- This goes first/top
 @decorator_extension_outer_generator
 @decorator_apply_torch_seed_generator
-@decorator_save_metadata_generator
-@decorator_save_wav_generator
+# @decorator_save_metadata_generator
+# @decorator_save_wav_generator
 @decorator_add_model_type_generator("chatterbox")
-@decorator_add_base_filename_generator
+# @decorator_add_base_filename_generator
 @decorator_add_date_generator
 @decorator_log_generation_generator
 @decorator_extension_inner_generator
