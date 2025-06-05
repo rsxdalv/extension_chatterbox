@@ -187,6 +187,7 @@ def _tts_generator(
     # chunks
     desired_length=200,
     max_length=300,
+    halve_first_chunk=False,
     seed=-1,  # for signature compatibility
     progress=gr.Progress(),
     streaming=False,
@@ -228,6 +229,8 @@ def _tts_generator(
             if chunked
             else [text]
         )
+        if halve_first_chunk:
+            texts = split_by_length_simple(texts[0], desired_length // 2, max_length // 2) + texts[1:]
         # for chunk in texts:
         for i, chunk in enumerate(texts):
             if not streaming:
@@ -470,6 +473,10 @@ def ui():
                         value=300,
                         step=1,
                     )
+                    halve_first_chunk = gr.Checkbox(
+                        label="Halve first chunk size",
+                        value=False,
+                    )
                     cache_voice = gr.Checkbox(
                         label="Cache voice (not implemented)",
                         value=False,
@@ -581,6 +588,7 @@ Thus **the challenge is to fix the seams** - with no overlap, the artifacts are 
         # chunks
         desired_length: "desired_length",
         max_length: "max_length",
+        halve_first_chunk: "halve_first_chunk",
     }
 
     generation_start = {
