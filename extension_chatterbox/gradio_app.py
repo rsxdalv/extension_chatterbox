@@ -111,8 +111,10 @@ def chatterbox_tts():
                 fn=lambda: gr.Dropdown(choices=get_voices()),
                 outputs=[voice_dropdown],
             )
-            voices_dir = get_path_from_root("voices")
-            OpenFolderButton(voices_dir, api_name="tortoise_open_voices")
+            OpenFolderButton(
+                get_path_from_root("voices", "chatterbox"),
+                api_name="chatterbox_open_voices_dir",
+            )
 
         audio_prompt_path = gr.Audio(
             label="Reference Audio", type="filepath", value=None
