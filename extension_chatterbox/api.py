@@ -43,7 +43,7 @@ def resolve_dtype(dtype):
     }[dtype]
 
 
-def chatterbox_to(model: "ChatterboxTTS", device, dtype):
+def chatterbox_tts_to(model: "ChatterboxTTS", device, dtype):
     print(f"Moving model to {str(device)}, {str(dtype)}")
 
     model.ve.to(device=device)
@@ -66,7 +66,16 @@ def get_model(
 
     model = ChatterboxTTS.from_pretrained(device=device)
     # having everything on float32 increases performance
-    return chatterbox_to(model, device, dtype)
+    return chatterbox_tts_to(model, device, dtype)
+
+
+@manage_model_state("chatterbox-vc")
+def get_model_vc(
+    model_name="just_a_placeholder", device=torch.device("cuda"), dtype=torch.float32
+):
+    from chatterbox.vc import ChatterboxVC
+
+    return ChatterboxVC.from_pretrained(device=device)
 
 
 def move_model_to_device_and_dtype(device, dtype, cpu_offload):
@@ -78,7 +87,7 @@ def move_model_to_device_and_dtype(device, dtype, cpu_offload):
         return True
     rename_model("chatterbox", generate_model_name(device, dtype))
     device = torch.device("cpu" if cpu_offload else device)
-    model = chatterbox_to(model, device, dtype)
+    model = chatterbox_tts_to(model, device, dtype)
     return True
 
 
@@ -107,10 +116,10 @@ def chatterbox_model(model_name, device="cuda", dtype=torch.float32):
 @contextmanager
 def cpu_offload_context(model, device, dtype, cpu_offload=False):
     if cpu_offload:
-        chatterbox_to(model, torch.device(device), dtype)
+        chatterbox_tts_to(model, torch.device(device), dtype)
     yield model
     if cpu_offload:
-        chatterbox_to(model, torch.device("cpu"), dtype)
+        chatterbox_tts_to(model, torch.device("cpu"), dtype)
 
 
 @interruptible
@@ -225,6 +234,28 @@ def tts(*args, **kwargs):
 
         print(traceback.format_exc())
         raise gr.Error(f"Error: {e}")
+
+
+def vc(
+    audio_in: str,
+    audio_ref: str,
+    progress=gr.Progress(),
+    **kwargs,
+):
+    progress(0.0, desc="Retrieving model...")
+    device = get_best_device()
+
+    print(f"Using device: {device}")
+
+    model = get_model_vc(model_name="just_a_placeholder", device=device)
+    progress(0.1, desc="Converting audio...")
+    wav = model.generate(
+        audio=audio_in,
+        target_voice_path=audio_ref,
+    )
+    return {
+        "audio_out": (model.sr, wav.squeeze().cpu().numpy()),
+    }
 
 
 def get_voices():

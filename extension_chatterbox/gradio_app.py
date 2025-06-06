@@ -22,6 +22,8 @@ from .api import (
     tts,
     tts_stream,
     interrupt,
+    get_voices,
+    vc,
 )
 
 
@@ -80,171 +82,177 @@ def ui():
   </div>
                 """
     )
-
-    with gr.Row():
-        with gr.Column():
-            text = gr.Textbox(label="Text", lines=3)
+    with gr.Tabs():
+        with gr.Tab("TTS"):
             with gr.Row():
-                btn_interrupt = gr.Button("Interrupt next chunk", interactive=False)
-                btn_stream = gr.Button("Streaming generation", variant="secondary")
-                btn = gr.Button("Generate", variant="primary")
-            btn_interrupt.click(
-                fn=lambda: gr.Button("Interrupting..."),
-                outputs=[btn_interrupt],
-            ).then(fn=interrupt, outputs=[btn_interrupt])
-
+                chatterbox_tts()
+        with gr.Tab("Voice Conversion"):
             with gr.Row():
-                voice_dropdown = gr.Dropdown(
-                    label="Saved voices", choices=["refresh to load the voices"]
+                chatterbox_vc()
+
+
+def chatterbox_tts():
+    with gr.Column():
+        text = gr.Textbox(label="Text", lines=3)
+        with gr.Row():
+            btn_interrupt = gr.Button("Interrupt next chunk", interactive=False)
+            btn_stream = gr.Button("Streaming generation", variant="secondary")
+            btn = gr.Button("Generate", variant="primary")
+        btn_interrupt.click(
+            fn=lambda: gr.Button("Interrupting..."),
+            outputs=[btn_interrupt],
+        ).then(fn=interrupt, outputs=[btn_interrupt])
+
+        with gr.Row():
+            voice_dropdown = gr.Dropdown(
+                label="Saved voices", choices=["refresh to load the voices"]
+            )
+            IconButton("refresh").click(
+                fn=lambda: gr.Dropdown(choices=get_voices()),
+                outputs=[voice_dropdown],
+            )
+            voices_dir = get_path_from_root("voices")
+            OpenFolderButton(voices_dir, api_name="tortoise_open_voices")
+
+        audio_prompt_path = gr.Audio(
+            label="Reference Audio", type="filepath", value=None
+        )
+
+        voice_dropdown.change(
+            lambda x: gr.Audio(value=x),
+            inputs=[voice_dropdown],
+            outputs=[audio_prompt_path],
+        )
+
+        exaggeration = gr.Slider(
+            label="Exaggeration (Neutral = 0.5, extreme values can be unstable)",
+            minimum=0,
+            maximum=2,
+            value=0.5,
+        )
+        cfg_weight = gr.Slider(
+            label="CFG Weight/Pace", minimum=0.0, maximum=1, value=0.5
+        )
+        temperature = gr.Slider(label="Temperature", minimum=0.05, maximum=5, value=0.8)
+
+        seed, randomize_seed_callback = randomize_seed_ui()
+
+    with gr.Column():
+        audio_out = gr.Audio(label="Audio Output")
+        streaming_audio_output = gr.Audio(
+            label="Audio Output (streaming)", streaming=True, autoplay=True
+        )
+
+        gr.Markdown("## Settings")
+
+        with gr.Accordion("Chunking", open=True), gr.Group():
+            chunked = gr.Checkbox(label="Split prompt into chunks", value=False)
+            with gr.Row():
+                desired_length = gr.Slider(
+                    label="Desired length (characters)",
+                    minimum=10,
+                    maximum=1000,
+                    value=200,
+                    step=1,
                 )
-                IconButton("refresh").click(
-                    fn=lambda: gr.Dropdown(choices=get_voices()),
-                    outputs=[voice_dropdown],
+                max_length = gr.Slider(
+                    label="Max length (characters)",
+                    minimum=10,
+                    maximum=1000,
+                    value=300,
+                    step=1,
                 )
-                voices_dir = get_path_from_root("voices")
-                OpenFolderButton(voices_dir, api_name="tortoise_open_voices")
+                halve_first_chunk = gr.Checkbox(
+                    label="Halve first chunk size",
+                    value=False,
+                )
+                cache_voice = gr.Checkbox(
+                    label="Cache voice (not implemented)",
+                    value=False,
+                    visible=False,
+                )
+        # model
+        with gr.Accordion("Model", open=False):
+            with gr.Row():
+                device = gr.Radio(
+                    label="Device",
+                    choices=["auto", "cuda", "mps", "cpu"],
+                    value="auto",
+                )
+                dtype = gr.Radio(
+                    label="Dtype",
+                    choices=["float32", "float16", "bfloat16"],
+                    value="float32",
+                )
+                cpu_offload = gr.Checkbox(label="CPU Offload", value=False)
+                model_name = gr.Dropdown(
+                    label="Model",
+                    choices=["just_a_placeholder"],
+                    value="just_a_placeholder",
+                    visible=False,
+                )
+            with gr.Row():
+                btn_move_model = gr.Button("Move to device and dtype")
+                btn_move_model.click(
+                    fn=lambda: gr.Button("Moving..."),
+                    outputs=[btn_move_model],
+                ).then(
+                    fn=move_model_to_device_and_dtype,
+                    inputs=[device, dtype, cpu_offload],
+                ).then(
+                    fn=lambda: gr.Button("Move to device and dtype"),
+                    outputs=[btn_move_model],
+                )
+                unload_model_button("chatterbox")
 
-            audio_prompt_path = gr.Audio(
-                label="Reference Audio", type="filepath", value=None
-            )
-
-            voice_dropdown.change(
-                lambda x: gr.Audio(value=x),
-                inputs=[voice_dropdown],
-                outputs=[audio_prompt_path],
-            )
-
-            exaggeration = gr.Slider(
-                label="Exaggeration (Neutral = 0.5, extreme values can be unstable)",
-                minimum=0,
-                maximum=2,
-                value=0.5,
-            )
-            cfg_weight = gr.Slider(
-                label="CFG Weight/Pace", minimum=0.0, maximum=1, value=0.5
-            )
-            temperature = gr.Slider(
-                label="Temperature", minimum=0.05, maximum=5, value=0.8
-            )
-
-            seed, randomize_seed_callback = randomize_seed_ui()
-
-        with gr.Column():
-            audio_out = gr.Audio(label="Audio Output")
-            streaming_audio_output = gr.Audio(
-                label="Audio Output (streaming)", streaming=True, autoplay=True
-            )
-
-            gr.Markdown("## Settings")
-
-            with gr.Accordion("Chunking", open=True), gr.Group():
-                chunked = gr.Checkbox(label="Split prompt into chunks", value=False)
-                with gr.Row():
-                    desired_length = gr.Slider(
-                        label="Desired length (characters)",
-                        minimum=10,
-                        maximum=1000,
-                        value=200,
-                        step=1,
-                    )
-                    max_length = gr.Slider(
-                        label="Max length (characters)",
-                        minimum=10,
-                        maximum=1000,
-                        value=300,
-                        step=1,
-                    )
-                    halve_first_chunk = gr.Checkbox(
-                        label="Halve first chunk size",
-                        value=False,
-                    )
-                    cache_voice = gr.Checkbox(
-                        label="Cache voice (not implemented)",
-                        value=False,
-                        visible=False,
-                    )
-            # model
-            with gr.Accordion("Model", open=False):
-                with gr.Row():
-                    device = gr.Radio(
-                        label="Device",
-                        choices=["auto", "cuda", "mps", "cpu"],
-                        value="auto",
-                    )
-                    dtype = gr.Radio(
-                        label="Dtype",
-                        choices=["float32", "float16", "bfloat16"],
-                        value="float32",
-                    )
-                    cpu_offload = gr.Checkbox(label="CPU Offload", value=False)
-                    model_name = gr.Dropdown(
-                        label="Model",
-                        choices=["just_a_placeholder"],
-                        value="just_a_placeholder",
-                        visible=False,
-                    )
-                with gr.Row():
-                    btn_move_model = gr.Button("Move to device and dtype")
-                    btn_move_model.click(
-                        fn=lambda: gr.Button("Moving..."),
-                        outputs=[btn_move_model],
-                    ).then(
-                        fn=move_model_to_device_and_dtype,
-                        inputs=[device, dtype, cpu_offload],
-                    ).then(
-                        fn=lambda: gr.Button("Move to device and dtype"),
-                        outputs=[btn_move_model],
-                    )
-                    unload_model_button("chatterbox")
-
-            with gr.Accordion("Streaming (Advanced Settings)", open=False):
-                gr.Markdown(
-                    """
+        with gr.Accordion("Streaming (Advanced Settings)", open=False):
+            gr.Markdown(
+                """
 Streaming has issues due to Chatterbox producing artifacts.
 Tokens per slice: 
 * 1000 is recommended, it is the default maximum value, equivalent to disabling streaming.
 * One second is around 23.5 tokens.
-                            
+                        
 Remove milliseconds:
 * 25 - 65 is recommended.
-    * This removes the last 45 milliseconds of each slice to avoid artifacts.
+* This removes the last 45 milliseconds of each slice to avoid artifacts.
 * start: 15 - 35 is recommended.
-    * This removes the first 25 milliseconds of each slice to avoid artifacts.
-                            
+* This removes the first 25 milliseconds of each slice to avoid artifacts.
+                        
 Chunk overlap method:
 * zero means that each chunk is seen sparately by the audio generator. 
 * full means that each chunk is appended and decoded as one long audio file.
-                            
+                        
 Thus **the challenge is to fix the seams** - with no overlap, the artifacts are high. With a very long overlap, such as a 0.5s crossfade, the audio starts to produce echo.
 """
+            )
+            with gr.Row():
+                tokens_per_slice = gr.Slider(
+                    label="Tokens per slice",
+                    minimum=1,
+                    maximum=1000,
+                    value=1000,
+                    step=1,
                 )
-                with gr.Row():
-                    tokens_per_slice = gr.Slider(
-                        label="Tokens per slice",
-                        minimum=1,
-                        maximum=1000,
-                        value=1000,
-                        step=1,
-                    )
-                    remove_milliseconds = gr.Slider(
-                        label="Remove milliseconds",
-                        minimum=0,
-                        maximum=300,
-                        value=45,
-                        step=1,
-                    )
-                    remove_milliseconds_start = gr.Slider(
-                        label="Remove milliseconds start",
-                        minimum=0,
-                        maximum=300,
-                        value=25,
-                        step=1,
-                    )
-                    chunk_overlap_method = gr.Radio(
-                        label="Chunk overlap method",
-                        choices=["zero", "full"],
-                        value="zero",
-                    )
+                remove_milliseconds = gr.Slider(
+                    label="Remove milliseconds",
+                    minimum=0,
+                    maximum=300,
+                    value=45,
+                    step=1,
+                )
+                remove_milliseconds_start = gr.Slider(
+                    label="Remove milliseconds start",
+                    minimum=0,
+                    maximum=300,
+                    value=25,
+                    step=1,
+                )
+                chunk_overlap_method = gr.Radio(
+                    label="Chunk overlap method",
+                    choices=["zero", "full"],
+                    value="zero",
+                )
 
     inputs = {
         text: "text",
@@ -314,6 +322,43 @@ Thus **the challenge is to fix the seams** - with no overlap, the artifacts are 
             api_name="chatterbox_tts_streaming",
         )
     ).then(**generation_end)
+
+
+@functools.wraps(vc)
+@decorator_extension_outer
+@decorator_apply_torch_seed
+@decorator_save_metadata
+@decorator_save_wav
+@decorator_add_model_type("chatterbox-vc")
+@decorator_add_base_filename
+@decorator_add_date
+@decorator_log_generation
+@decorator_extension_inner
+@log_function_time
+def vc_decorated(*args, **kwargs):
+    return vc(*args, **kwargs)
+
+
+def chatterbox_vc():
+    with gr.Column():
+        audio_in = gr.Audio(label="Input Audio", type="filepath", value=None)
+        btn = gr.Button("Convert", variant="primary")
+        audio_ref = gr.Audio(label="Audio Reference", type="filepath", value=None)
+    with gr.Column():
+        audio_out = gr.Audio(label="Output Audio")
+
+    btn.click(fn=lambda: gr.Button("Converting..."), outputs=[btn]).then(
+        **dictionarize_wraps(
+            vc_decorated,
+            inputs={audio_in: "audio_in", audio_ref: "audio_ref"},
+            outputs={
+                "audio_out": audio_out,
+                "metadata": gr.JSON(visible=False),
+                "folder_root": gr.Textbox(visible=False),
+            },
+            api_name="chatterbox_vc",
+        )
+    ).then(fn=lambda: gr.Button("Convert"), outputs=[btn])
 
 
 if __name__ == "__main__":
