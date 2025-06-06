@@ -230,7 +230,7 @@ def _tts_generator(
             else [text]
         )
         if halve_first_chunk:
-            texts = split_by_length_simple(texts[0], desired_length // 2, max_length // 2) + texts[1:]
+            texts = split_and_recombine_text(texts[0], desired_length // 2, max_length // 2) + texts[1:]
         # for chunk in texts:
         for i, chunk in enumerate(texts):
             if not streaming:
