@@ -24,7 +24,11 @@ from .api import (
     interrupt,
     get_voices,
     vc,
+    compile_t3,
+    remove_t3_compilation,
+    get_current_model,
 )
+from .memory import get_chatterbox_memory_usage
 
 
 @functools.wraps(tts)
@@ -193,6 +197,7 @@ def chatterbox_tts():
                     value="just_a_placeholder",
                     visible=False,
                 )
+            
             with gr.Row():
                 btn_move_model = gr.Button("Move to device and dtype")
                 btn_move_model.click(
@@ -207,7 +212,64 @@ def chatterbox_tts():
                 )
                 unload_model_button("chatterbox")
 
-        with gr.Accordion("Streaming (Advanced Settings)", open=False):
+            gr.Markdown("## Optimization")
+            gr.Markdown("""
+                        By reducing cache length, the model becomes faster, but maximum generation length is reduced. Gives an error if too low.
+                        For fastest speeds, reduce prompt length and max new tokens. Fast: 330 max new tokens, 600 cache length.
+                        """)
+            with gr.Row():
+                max_new_tokens = gr.Slider(
+                    label="Max new tokens",
+                    minimum=100,
+                    maximum=1000,
+                    value=1000,
+                    step=10,
+                )
+                max_cache_len = gr.Slider(
+                    label="Cache length",
+                    minimum=200,
+                    maximum=1500,
+                    value=1500,
+                    step=10,
+                )
+            use_compilation = gr.Checkbox(label="Use compilation", value=None, visible=True)
+
+            with gr.Row():
+                btn_compile = gr.Button("Compile model")
+                btn_compile.click(
+                    fn=lambda: gr.Button("Compiling..."),
+                    outputs=[btn_compile],
+                ).then(
+                    fn=lambda: compile_t3(get_current_model("chatterbox")),
+                    inputs=[],
+                    outputs=[],
+                ).then(
+                    fn=lambda: gr.Button("Compile model"),
+                    outputs=[btn_compile],
+                )
+                btn_remove_compilation = gr.Button("Remove compilation")
+                btn_remove_compilation.click(
+                    fn=lambda: gr.Button("Removing compilation..."),
+                    outputs=[btn_remove_compilation],
+                ).then(
+                    fn=lambda: remove_t3_compilation(get_current_model("chatterbox")),
+                    inputs=[],
+                    outputs=[],
+                ).then(
+                    fn=lambda: gr.Button("Remove compilation"),
+                    outputs=[btn_remove_compilation],
+                )
+
+            gr.Markdown("Memory usage:")
+            gr.Button("Check memory usage").click(
+                fn=get_chatterbox_memory_usage,
+                outputs=[gr.Markdown()],
+            )
+
+        gr.Markdown(
+            "Sliced audio streaming is deprecated due to artifacts, use chunking instead."
+        )
+        with gr.Accordion("Streaming (Advanced Settings)", open=False, visible=False):
             gr.Markdown(
                 """
 Streaming has issues due to Chatterbox producing artifacts.
@@ -280,6 +342,11 @@ Thus **the challenge is to fix the seams** - with no overlap, the artifacts are 
         desired_length: "desired_length",
         max_length: "max_length",
         halve_first_chunk: "halve_first_chunk",
+        # compile
+        use_compilation: "use_compilation",
+        # optimization
+        max_new_tokens: "max_new_tokens",
+        max_cache_len: "max_cache_len",
     }
 
     generation_start = {
