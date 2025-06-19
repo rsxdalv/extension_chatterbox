@@ -99,6 +99,8 @@ def compile_t3(model: "ChatterboxTTS"):
 
 
 def remove_t3_compilation(model: "ChatterboxTTS"):
+    if not hasattr(model.t3, "_step_compilation_target_original"):
+        return
     model.t3._step_compilation_target = model.t3._step_compilation_target_original
 
 
