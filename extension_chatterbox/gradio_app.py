@@ -234,8 +234,8 @@ def chatterbox_tts():
                 )
             use_compilation = gr.Checkbox(label="Use compilation", value=None, visible=True)
 
-            with gr.Row():
-                btn_compile = gr.Button("Compile model")
+            with gr.Row(visible=False):
+                btn_compile = gr.Button("Compile model", variant="primary")
                 btn_compile.click(
                     fn=lambda: gr.Button("Compiling..."),
                     outputs=[btn_compile],
@@ -258,6 +258,14 @@ def chatterbox_tts():
                 ).then(
                     fn=lambda: gr.Button("Remove compilation"),
                     outputs=[btn_remove_compilation],
+                )
+                def reset_torch_dynamo():
+                    import torch
+                    torch._dynamo.reset()
+                gr.Button("Reset compilation", variant="stop").click(
+                    fn=reset_torch_dynamo,
+                    inputs=[],
+                    outputs=[],
                 )
 
             gr.Markdown("Memory usage:")
