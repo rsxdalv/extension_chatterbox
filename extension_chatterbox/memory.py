@@ -20,6 +20,8 @@ def estimate_model_memory(model):
 
 
 def estimate_combined_memory(model):
+    if not model:
+        return {}, 0
     memory_by_component, total_memory = estimate_model_memory(model.t3)
     memory_by_component_s3gen, total_memory_s3gen = estimate_model_memory(model.s3gen)
     for component, memory in memory_by_component_s3gen.items():

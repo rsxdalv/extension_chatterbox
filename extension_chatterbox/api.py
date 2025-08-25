@@ -83,27 +83,6 @@ def chatterbox_tts_to(model: "ChatterboxTTS", device, dtype):
     return model
 
 
-def _set_t3_compilation(model: "ChatterboxTTS"):
-    if not hasattr(model.t3, "_step_compilation_target_original"):
-        model.t3._step_compilation_target_original = model.t3._step_compilation_target
-    model.t3._step_compilation_target = torch.compile(
-        model.t3._step_compilation_target, fullgraph=True, backend="cudagraphs"
-    )
-
-
-def compile_t3(model: "ChatterboxTTS"):
-    _set_t3_compilation(model)
-    for i in range(2):
-        print(f"Compiling T3 {i + 1}/2")
-        list(model.generate("triggering torch compile by running the model"))
-
-
-def remove_t3_compilation(model: "ChatterboxTTS"):
-    if not hasattr(model.t3, "_step_compilation_target_original"):
-        return
-    model.t3._step_compilation_target = model.t3._step_compilation_target_original
-
-
 @manage_model_state("chatterbox")
 def get_model(
     model_name="just_a_placeholder", device=torch.device("cuda"), dtype=torch.float32
@@ -149,13 +128,6 @@ def chatterbox_model(model_name, device="cuda", dtype=torch.float32):
         dtype=dtype,
     )
 
-    # use_autocast = dtype in [torch.float16, torch.bfloat16]
-
-    # with (
-    #     torch.autocast(device_type=device, dtype=dtype)
-    #     if use_autocast
-    #     else torch.no_grad()
-    # ):
     with torch.no_grad():
         yield model
 
@@ -184,11 +156,6 @@ def _tts_generator(
     # hyperparameters
     chunked=False,
     cache_voice=False,
-    # streaming
-    tokens_per_slice=1000,
-    remove_milliseconds=100,
-    remove_milliseconds_start=100,
-    chunk_overlap_method="zero",
     # chunks
     desired_length=200,
     max_length=300,
@@ -196,10 +163,10 @@ def _tts_generator(
     seed=-1,  # for signature compatibility
     progress=gr.Progress(),
     streaming=False,
-    # progress=gr.Progress(track_tqdm=True),
-    use_compilation=None,
     max_new_tokens=1000,
     max_cache_len=1500,  # Affects the T3 speed, hence important
+    initial_forward_pass_backend="eager",
+    generate_token_backend="cudagraphs-manual",
     **kwargs,
 ):
     device = resolve_device(device)
@@ -215,12 +182,6 @@ def _tts_generator(
     ) as model, cpu_offload_context(model, device, dtype, cpu_offload):
         progress(0.1, desc="Generating audio...")
 
-        if use_compilation is not None:
-            if use_compilation:
-                _set_t3_compilation(model)
-            else:
-                remove_t3_compilation(model)
-
         # save time on subsequent calls
         if audio_prompt_path is not None:
             model.prepare_conditionals(audio_prompt_path, exaggeration=exaggeration)
@@ -235,15 +196,14 @@ def _tts_generator(
                 exaggeration=exaggeration,
                 cfg_weight=cfg_weight,
                 temperature=temperature,
-                # stream
-                # tokens_per_slice=tokens_per_slice,
-                # remove_milliseconds=remove_milliseconds,
-                # remove_milliseconds_start=remove_milliseconds_start,
-                # chunk_overlap_method=chunk_overlap_method,
                 # Not implemented
                 # cache_voice=cache_voice,
                 max_new_tokens=max_new_tokens,
                 max_cache_len=max_cache_len,
+                t3_params={
+                    "initial_forward_pass_backend": initial_forward_pass_backend,
+                    "generate_token_backend": generate_token_backend,
+                },
             )
 
         texts = (
@@ -284,7 +244,6 @@ def tts_stream(*args, **kwargs):
 @functools.wraps(_tts_generator)
 def tts(*args, **kwargs):
     try:
-        # Todo - Promise.all style parallel cascading for faster full audio generation (Omni) (very Important for slower GPUs)
         wavs = list(
             _tts_generator(*args, interrupt_flag=global_interrupt_flag, **kwargs)
         )

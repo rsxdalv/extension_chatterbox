@@ -6,7 +6,7 @@ import os
 setuptools.setup(
 	name="extension_chatterbox",
     packages=setuptools.find_namespace_packages(),
-    version="2.0.1",
+    version="3.0.0",
 	author="rsxdalv",
 	description="Chatterbox TTS extension for text-to-speech generation.",
 	url="https://github.com/rsxdalv/extension_chatterbox",
@@ -15,7 +15,7 @@ setuptools.setup(
     install_requires=[
         "gradio",
         # "chatterbox-tts"
-        "chatterbox-tts @ git+https://github.com/rsxdalv/chatterbox@fast",
+        "chatterbox-tts @ git+https://github.com/rsxdalv/chatterbox@faster",
         # "peft",
     ],
     classifiers=[
