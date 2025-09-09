@@ -26,7 +26,7 @@ from .api import (
     vc,
 )
 from .memory import get_chatterbox_memory_usage
-
+from .SUPPORTED_LANGUAGES import SUPPORTED_LANGUAGES
 
 @functools.wraps(tts)
 @decorator_extension_outer
@@ -183,9 +183,14 @@ def chatterbox_tts():
                 cpu_offload = gr.Checkbox(label="CPU Offload", value=False)
                 model_name = gr.Dropdown(
                     label="Model",
-                    choices=["just_a_placeholder"],
-                    value="just_a_placeholder",
-                    visible=False,
+                    choices=["English", "multilingual"],
+                    value="English",
+                    info="Avoid changing the model after generating"
+                )
+                language_id = gr.Dropdown(
+                    label="Language ID (for multilingual model)",
+                    choices=[(name, id) for id, name in SUPPORTED_LANGUAGES.items()],
+                    value="en",
                 )
 
             with gr.Row():
@@ -255,6 +260,7 @@ def chatterbox_tts():
         device: "device",
         dtype: "dtype",
         model_name: "model_name",
+        language_id: "language_id",
         # hyperparameters
         chunked: "chunked",
         cpu_offload: "cpu_offload",

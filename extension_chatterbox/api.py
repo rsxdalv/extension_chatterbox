@@ -5,7 +5,7 @@ import gradio as gr
 import os
 
 from contextlib import contextmanager
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 from tts_webui.utils.manage_model_state import (
     manage_model_state,
@@ -20,6 +20,7 @@ from .InterruptionFlag import interruptible, InterruptionFlag
 
 if TYPE_CHECKING:
     from chatterbox.tts import ChatterboxTTS
+    from chatterbox.mtl_tts import ChatterboxMultilingualTTS
 
 
 def get_best_device():
@@ -86,10 +87,15 @@ def chatterbox_tts_to(model: "ChatterboxTTS", device, dtype):
 @manage_model_state("chatterbox")
 def get_model(
     model_name="just_a_placeholder", device=torch.device("cuda"), dtype=torch.float32
-):
-    from chatterbox.tts import ChatterboxTTS
+) -> Union["ChatterboxTTS", "ChatterboxMultilingualTTS"]:
+    if model_name == "multilingual":
+        from chatterbox.mtl_tts import ChatterboxMultilingualTTS
 
-    model = ChatterboxTTS.from_pretrained(device=device)
+        model = ChatterboxMultilingualTTS.from_pretrained(device=device)
+    else:
+        from chatterbox.tts import ChatterboxTTS
+
+        model = ChatterboxTTS.from_pretrained(device=device)
     # having everything on float32 increases performance
     return chatterbox_tts_to(model, device, dtype)
 
@@ -123,7 +129,7 @@ def generate_model_name(device, dtype):
 @contextmanager
 def chatterbox_model(model_name, device="cuda", dtype=torch.float32):
     model = get_model(
-        model_name=generate_model_name(device, dtype),
+        model_name=model_name,
         device=torch.device(device),
         dtype=dtype,
     )
@@ -150,6 +156,7 @@ def _tts_generator(
     audio_prompt_path=None,
     # model
     model_name="just_a_placeholder",
+    language_id="en",
     device="cuda",
     dtype="float32",
     cpu_offload=False,
@@ -196,6 +203,7 @@ def _tts_generator(
                 exaggeration=exaggeration,
                 cfg_weight=cfg_weight,
                 temperature=temperature,
+                language_id=language_id,
                 # Not implemented
                 # cache_voice=cache_voice,
                 max_new_tokens=max_new_tokens,
