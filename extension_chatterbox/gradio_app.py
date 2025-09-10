@@ -66,10 +66,10 @@ def ui():
 
   <div style="display: flex; flex-wrap: wrap; gap: 20px;">
     <div>
-        <strong>Storage Size:</strong> t3_cfg.safetensors 2.13 GB, s3gen.safetensors 1.06 GB
+        <strong>Storage Size:</strong> 3.2 GB
     </div>
     <div>
-        <strong>VRAM Usage</strong>: Float32: 5-7 GB, Bfloat16: 3-4 GB, CPU Offloading Passive: 0.7 GB of VRAM
+        <strong>VRAM Usage</strong>: Float32: 7 GB, Bfloat16: 4 GB, CPU Offloading Passive VRAM: 0.7 GB
     </div>
   </div>
                 """
@@ -117,7 +117,21 @@ def chatterbox_tts():
             inputs=[voice_dropdown],
             outputs=[audio_prompt_path],
         )
-
+        with gr.Row():
+            model_name = gr.Radio(
+                label="Model",
+                choices=[
+                    ("English", "just_a_placeholder"),
+                    ("Multilingual", "multilingual"),
+                ],
+                value="just_a_placeholder",
+                
+            )
+            language_id = gr.Dropdown(
+                label="Language (Multilingual)",
+                choices=[(name, id) for id, name in SUPPORTED_LANGUAGES.items()],
+                value="en",
+            )
         exaggeration = gr.Slider(
             label="Exaggeration (Neutral = 0.5, extreme values can be unstable)",
             minimum=0,
@@ -181,17 +195,6 @@ def chatterbox_tts():
                 )
             with gr.Row():
                 cpu_offload = gr.Checkbox(label="CPU Offload", value=False)
-                model_name = gr.Dropdown(
-                    label="Model",
-                    choices=["English", "multilingual"],
-                    value="English",
-                    info="Avoid changing the model after generating"
-                )
-                language_id = gr.Dropdown(
-                    label="Language ID (for multilingual model)",
-                    choices=[(name, id) for id, name in SUPPORTED_LANGUAGES.items()],
-                    value="en",
-                )
 
             with gr.Row():
                 btn_move_model = gr.Button("Move to device and dtype")
