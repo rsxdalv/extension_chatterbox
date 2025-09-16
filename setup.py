@@ -4,12 +4,12 @@ import re
 import os
 
 setuptools.setup(
-	name="extension_chatterbox",
+	name="tts_webui_extension.chatterbox",
     packages=setuptools.find_namespace_packages(),
     version="4.1.0",
 	author="rsxdalv",
 	description="Chatterbox TTS extension for text-to-speech generation.",
-	url="https://github.com/rsxdalv/extension_chatterbox",
+	url="https://github.com/rsxdalv/tts_webui_extension.chatterbox",
     project_urls={},
     scripts=[],
     install_requires=[
@@ -23,3 +23,4 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
 )
+
