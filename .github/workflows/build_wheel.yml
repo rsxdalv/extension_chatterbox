@@ -92,18 +92,18 @@ jobs:
             ```
           files: dist/*.whl
 
-      # - name: Upload to TestPyPI
-      #   env:
-      #     TWINE_USERNAME: __token__
-      #     TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
-      #   run: |
-      #     echo "Uploading to TestPyPI..."
-      #     python -m twine upload --repository testpypi dist/* --verbose
+      - name: Upload to TestPyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
+        run: |
+          echo "Uploading to TestPyPI..."
+          python -m twine upload --repository testpypi dist/* --verbose
 
-      # - name: Upload to PyPI (optional)
-      #   env:
-      #     TWINE_USERNAME: __token__
-      #     TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-      #   run: |
-      #     echo "Uploading to PyPI..."
-      #     python -m twine upload dist/*
+      - name: Upload to PyPI (optional)
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          echo "Uploading to PyPI..."
+          python -m twine upload dist/*
