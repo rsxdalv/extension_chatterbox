@@ -71,6 +71,9 @@ def ui():
     <div>
         <strong>VRAM Usage</strong>: Float32: 7 GB, Bfloat16: 4 GB, CPU Offloading Passive VRAM: 0.7 GB
     </div>
+    <div>
+        For better Russian Stress handling, install the package: <code>pip install "russian-text-stresser @ git+https://github.com/Vuizur/add-stress-to-epub"</code>
+    </div>
   </div>
                 """
     )
