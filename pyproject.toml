@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tts_webui_extension.chatterbox"
-version = "4.2.1"
+version = "4.2.2"
 description = "A template extension for TTS Generation WebUI"
 readme = "README.md"
 authors = [
@@ -17,7 +17,7 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "tts-webui.chatterbox-tts>=0.4.3",
+    "tts-webui.chatterbox-tts>=0.4.4",
 ]
 
 [project.urls]
